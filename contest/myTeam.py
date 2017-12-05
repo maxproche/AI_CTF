@@ -13,7 +13,7 @@
 
 
 from captureAgents import CaptureAgent
-import random, time, util
+import random, time, util, itertools
 from game import Directions
 import game
 
@@ -51,6 +51,52 @@ class OffensiveAgent(CaptureAgent):
   You should look at baselineTeam.py for more details about how to
   create an agent as this is the bare minimum.
   """
+  numGhosts = 2
+  parts = []
+
+  def getObservationDistribution(self, noisyDistance, gameState):
+      observationDistributions = {}
+      if noisyDistance == None:
+          return util.Counter()
+      if noisyDistance not in observationDistributions:
+          distribution = util.Counter()
+          for pos in self.legalPositions:
+              dist = self.getMazeDistance(pos, gameState.getAgentPosition(self.index))
+              prob = gameState.getDistanceProb(dist, noisyDistance)
+              distribution[pos] += prob
+          observationDistributions[noisyDistance] = distribution
+      return observationDistributions[noisyDistance]
+
+  def observeState(self, gameState):
+
+      myPosition = gameState.getAgentPosition(self.index)
+      noisyDistances = gameState.getAgentDistances()
+
+      emissionModels = {}
+      for dist in noisyDistances:
+          self.getObservationDistribution(dist, gameState)
+          emissionModels = [self.getObservationDistribution(dist, gameState) for dist in noisyDistances]
+          print "emission models: ", emissionModels
+  def initializeParticles(self):
+      #because we need to shuffle the particles, use temporary list
+      temporaryParticles = []
+      #thank God for itertools
+      for permutation in itertools.permutations(self.legalPositions, self.numGhosts):
+          temporaryParticles.append(permutation)
+      #shuffle changes temporaryParticles to a shuffled list of particles
+      random.shuffle(temporaryParticles)
+
+      self.numParticles = len(temporaryParticles) * 5
+
+      #moving the shuffled particles into our particle list
+      i = 0
+      j = 0
+      self.parts = []
+      while i < self.numParticles:
+          self.parts.append(temporaryParticles[j])
+          i+=1
+          #need to go through the list multiple times to get the right number of particles
+          j = (j+1)%len(temporaryParticles)
 
   def registerInitialState(self, gameState):
     """
@@ -73,20 +119,22 @@ class OffensiveAgent(CaptureAgent):
     '''
     CaptureAgent.registerInitialState(self, gameState)
 
-    '''
-    Your initialization code goes here, if you need any.
-    '''
+    #set up offensive agent & defensive agent indices
+    indices = self.getTeam(gameState)
+    self.index = indices[0]
+    self.partnerIndex = indices[1]
 
+    #set up legal positions
+    self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
+
+    #initialize particles
+    self.initializeParticles()
 
   def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
+
     actions = gameState.getLegalActions(self.index)
 
-    '''
-    You should change this in your own agent.
-    '''
+    self.observeState(gameState)
 
     return random.choice(actions)
 
