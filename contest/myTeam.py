@@ -53,26 +53,25 @@ class OffensiveAgent(CaptureAgent):
   """
   numGhosts = 2
   parts = []
-  observationDistributions = {}
 
   def getObservationDistribution(self, noisyDistance, gameState):
+      observationDistributions = {}
       if noisyDistance == None:
           return util.Counter()
-      if noisyDistance not in self.observationDistributions:
+      if noisyDistance not in observationDistributions:
           distribution = util.Counter()
           for pos in self.legalPositions:
-              dist = self.getMazeDistance(pos, gameState.getAgentPosition(self.index))
+              dist = util.manhattanDistance(pos, gameState.getAgentPosition(self.index))
               prob = gameState.getDistanceProb(dist, noisyDistance)
               distribution[dist] += prob
-              self.observationDistributions[noisyDistance] = distribution
-      return self.observationDistributions[noisyDistance]
+              observationDistributions[noisyDistance] = distribution
+      return observationDistributions[noisyDistance]
 
   def observeState(self, gameState):
       self.getBeliefDistribution()
       myPosition = gameState.getAgentPosition(self.index)
       noisyDistances = gameState.getAgentDistances()
       emissionModels = {}
-      count = 0
       dist1 = noisyDistances[self.oppIndex1]
       emissionModels[self.oppIndex1] = self.getObservationDistribution(dist1, gameState)
       dist2 = noisyDistances[self.oppIndex2]
@@ -84,7 +83,7 @@ class OffensiveAgent(CaptureAgent):
           i = 0
           for ghostIndex in self.oppIndices:
               eM = emissionModels[ghostIndex]
-              trueDistance = self.getMazeDistance(belief[i], myPosition)
+              trueDistance = util.manhattanDistance(belief[i], myPosition)
               prob *= eM[trueDistance]
               self.beliefs[belief] = prob * self.beliefs[belief]
               i += 1
@@ -116,7 +115,7 @@ class OffensiveAgent(CaptureAgent):
           temporaryParticles.append(permutation)
       #shuffle changes temporaryParticles to a shuffled list of particles
       random.shuffle(temporaryParticles)
-      self.numParticles = 500
+      self.numParticles = 1000
 
       #moving the shuffled particles into our particle list
       i = 0
@@ -156,7 +155,6 @@ class OffensiveAgent(CaptureAgent):
     self.partnerIndex = self.indices[1]
     self.oppIndex1 = self.oppIndices[0]
     self.oppIndex2 = self.oppIndices[1]
-    print "my, partner, opp1, opp2 ", self.index, self.partnerIndex, self.oppIndex1, self.oppIndex2
     #set up legal positions
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
