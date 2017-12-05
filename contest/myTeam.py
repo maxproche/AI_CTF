@@ -63,8 +63,8 @@ class OffensiveAgent(CaptureAgent):
           for pos in self.legalPositions:
               dist = self.getMazeDistance(pos, gameState.getAgentPosition(self.index))
               prob = gameState.getDistanceProb(dist, noisyDistance)
-              distribution[pos] += prob
-          self.observationDistributions[noisyDistance] = distribution
+              distribution[dist] += prob
+              self.observationDistributions[noisyDistance] = distribution
       return self.observationDistributions[noisyDistance]
 
   def observeState(self, gameState):
@@ -73,20 +73,21 @@ class OffensiveAgent(CaptureAgent):
       noisyDistances = gameState.getAgentDistances()
       emissionModels = {}
       count = 0
-      for dist in noisyDistances:
-          if count != self.index and count != self.partnerIndex:
-              self.getObservationDistribution(dist, gameState)
-              emissionModels = [self.getObservationDistribution(dist, gameState) for dist in noisyDistances]
-          count += 1
+      dist1 = noisyDistances[self.oppIndex1]
+      emissionModels[self.oppIndex1] = self.getObservationDistribution(dist1, gameState)
+      dist2 = noisyDistances[self.oppIndex2]
+      emissionModels[self.oppIndex2] = self.getObservationDistribution(dist2, gameState)
+      #GHOST PART IS LEFT OUT
 
-      #ghosts in jail parts
       for belief in self.beliefs:
           prob = 1
-          for i in range(self.numGhosts):
-              eM = emissionModels[i]
+          i = 0
+          for ghostIndex in self.oppIndices:
+              eM = emissionModels[ghostIndex]
               trueDistance = self.getMazeDistance(belief[i], myPosition)
               prob *= eM[trueDistance]
               self.beliefs[belief] = prob * self.beliefs[belief]
+              i += 1
 
       if self.beliefs.totalCount() == 0:
           self.initializeParticles()
@@ -95,8 +96,6 @@ class OffensiveAgent(CaptureAgent):
       finalList = []
       for k in range(self.numParticles):
           finalList.append(util.sample(self.beliefs))
-
-      print "Here"
 
       self.parts = finalList
 
@@ -151,10 +150,13 @@ class OffensiveAgent(CaptureAgent):
     CaptureAgent.registerInitialState(self, gameState)
 
     #set up offensive agent & defensive agent indices
-    indices = self.getTeam(gameState)
-    self.index = indices[0]
-    self.partnerIndex = indices[1]
-
+    self.indices = self.getTeam(gameState)
+    self.oppIndices = self.getOpponents(gameState)
+    self.index = self.indices[0]
+    self.partnerIndex = self.indices[1]
+    self.oppIndex1 = self.oppIndices[0]
+    self.oppIndex2 = self.oppIndices[1]
+    print "my, partner, opp1, opp2 ", self.index, self.partnerIndex, self.oppIndex1, self.oppIndex2
     #set up legal positions
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
@@ -166,9 +168,13 @@ class OffensiveAgent(CaptureAgent):
     actions = gameState.getLegalActions(self.index)
 
     self.observeState(gameState)
-    for part in self.parts:
-        print part
+    self.getBeliefDistribution()
 
+    positionsSeen = util.Counter()
+    for positions, prob in self.beliefs.items():
+        positionsList = [positions[0], positions[1]]
+
+        self.debugDraw(positionsList, [prob, 0, 0], clear = False)
     return random.choice(actions)
 
 class DefensiveAgent(CaptureAgent):
