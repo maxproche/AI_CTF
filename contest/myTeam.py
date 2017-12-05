@@ -53,30 +53,62 @@ class OffensiveAgent(CaptureAgent):
   """
   numGhosts = 2
   parts = []
+  observationDistributions = {}
 
   def getObservationDistribution(self, noisyDistance, gameState):
-      observationDistributions = {}
       if noisyDistance == None:
           return util.Counter()
-      if noisyDistance not in observationDistributions:
+      if noisyDistance not in self.observationDistributions:
           distribution = util.Counter()
           for pos in self.legalPositions:
               dist = self.getMazeDistance(pos, gameState.getAgentPosition(self.index))
               prob = gameState.getDistanceProb(dist, noisyDistance)
               distribution[pos] += prob
-          observationDistributions[noisyDistance] = distribution
-      return observationDistributions[noisyDistance]
+          self.observationDistributions[noisyDistance] = distribution
+      return self.observationDistributions[noisyDistance]
 
   def observeState(self, gameState):
-
+      self.getBeliefDistribution()
       myPosition = gameState.getAgentPosition(self.index)
       noisyDistances = gameState.getAgentDistances()
-
       emissionModels = {}
+      count = 0
       for dist in noisyDistances:
-          self.getObservationDistribution(dist, gameState)
-          emissionModels = [self.getObservationDistribution(dist, gameState) for dist in noisyDistances]
-          print "emission models: ", emissionModels
+          if count != self.index and count != self.partnerIndex:
+              self.getObservationDistribution(dist, gameState)
+              emissionModels = [self.getObservationDistribution(dist, gameState) for dist in noisyDistances]
+          count += 1
+
+      #ghosts in jail parts
+      for belief in self.beliefs:
+          prob = 1
+          for i in range(self.numGhosts):
+              eM = emissionModels[i]
+              trueDistance = self.getMazeDistance(belief[i], myPosition)
+              prob *= eM[trueDistance]
+              self.beliefs[belief] = prob * self.beliefs[belief]
+
+      if self.beliefs.totalCount() == 0:
+          self.initializeParticles()
+          self.getBeliefDistribution()
+
+      finalList = []
+      for k in range(self.numParticles):
+          finalList.append(util.sample(self.beliefs))
+
+      print "Here"
+
+      self.parts = finalList
+
+  def getBeliefDistribution(self):
+      "*** YOUR CODE HERE ***"
+      #add 1 for each location pair, then normalize to get beliefs
+      self.beliefs = util.Counter()
+      for tuples in self.parts:
+          self.beliefs[tuples] += 1
+
+      self.beliefs.normalize()
+
   def initializeParticles(self):
       #because we need to shuffle the particles, use temporary list
       temporaryParticles = []
@@ -85,8 +117,7 @@ class OffensiveAgent(CaptureAgent):
           temporaryParticles.append(permutation)
       #shuffle changes temporaryParticles to a shuffled list of particles
       random.shuffle(temporaryParticles)
-
-      self.numParticles = len(temporaryParticles) * 5
+      self.numParticles = 500
 
       #moving the shuffled particles into our particle list
       i = 0
@@ -135,6 +166,8 @@ class OffensiveAgent(CaptureAgent):
     actions = gameState.getLegalActions(self.index)
 
     self.observeState(gameState)
+    for part in self.parts:
+        print part
 
     return random.choice(actions)
 
