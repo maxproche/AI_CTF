@@ -1,0 +1,29 @@
+End of Run Weights:
+Offensive(old):
+
+{'bias': 22.7516205371787,
+'dist-to-partner': 0.7216936236198389,
+'len-eat-food': 4.5503241074357605,
+'num-walls-near-me': 0.4415415275786908,
+'score': 0.0,
+'len-defend-food': 1.2928359441128847,
+'dist-to-opp-1': 0.39082281745196823,
+'dist-to-opp-2': 2.5769784795754878,
+'num-capsules': 0.1922210466606298}
+
+Offensive(new):
+{'bias': -1.772335469544526, 'dist-to-partner': -0.051635306401937905, 'len-eat-food': -0.35446709390890496, 'num-walls-near-me': -0.0343711488586949, 'score': 4.580205030660764, 'len-defend-food': -0.29954936847772545, 'dist-to-opp-1': -0.38016499563414763, 'dist-to-opp-2': -0.4363765323073004, 'num-capsules': -0.03511732538861859}
+Defensive(old):
+
+{'len-eat-food': 4.538839547434245,
+'num-walls-near-me': 0.4260022154242636,
+'dist-to-opp-1': 0.5456819211526481,
+'dist-to-opp-2': 2.634262031656271,
+'bias': 22.694197737171073,
+'dist-to-partner': 0.6127650665257229,
+'num-capsules': 0.18581696859394578,
+'score': 0.0,
+'len-defend-food': 1.3366174173127503}
+
+Defensive(new):
+{'len-eat-food': -0.35055324721340503, 'num-walls-near-me': -0.03503058563468913, 'dist-to-opp-1': -0.42300292750214835, 'dist-to-opp-2': -0.4681411340898618, 'bias': -1.7527662360670238, 'dist-to-partner': -0.041968774626847595, 'num-capsules': -0.03505205089004279, 'score': 4.570525781010478, 'len-defend-food': -0.29664942446763226}
