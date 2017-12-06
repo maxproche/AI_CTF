@@ -173,10 +173,14 @@ class OffensiveAgent(CaptureAgent):
       defendFood = self.getFoodYouAreDefending(gameState).asList()
       eatFood = self.getFood(gameState).asList()
       totalFood = len(defendFood) + len(eatFood)
+<<<<<<< HEAD
       diffFood = len(eatFood) - len(defendFood)
       return 10*self.getScore(gameState) - len(eatFood) - 100*self.getMazeDistance(gameState.getAgentPosition(self.index),eatFood[len(eatFood)-1])
 
 
+=======
+      return 1.0 / float( len(eatFood) )
+>>>>>>> 52423f8816f0e9ae7741844722e5e62195162c4b
 
 
 #Q-Learning stuff ends here ************************************************************************************
@@ -300,6 +304,15 @@ class OffensiveAgent(CaptureAgent):
     self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
     self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
 
+    if self.actionCount <= 12:
+        return 'South'
+    if self.actionCount == 13 or self.actionCount == 14:
+        return 'West'
+    if self.actionCount > 14 and self.actionCount <= 18:
+        return 'North'
+    if self.actionCount == 19:
+        return 'West'
+
     if self.opponent1Position == None or self.opponent2Position == None:
         self.observeState(gameState)
         self.getBeliefDistribution()
@@ -321,6 +334,8 @@ class OffensiveAgent(CaptureAgent):
     nextGameState = gameState.generateSuccessor(self.index, bestAction)
     reward = self.getReward(gameState)
     self.update(gameState, bestAction, nextGameState, reward)
+    print "Score: ", gameState.getScore()
+
     return bestAction
 
  #OffensiveAgent methods end here ************************************************************************************
@@ -393,7 +408,7 @@ class DefensiveAgent(CaptureAgent):
       features["dist-to-partner"] = 0.01 * ( (float)(distToPartner) )
       features["len-defend-food"] = 0.01 * (float)(lenDefendFood)
       features["len-eat-food"] = 0.01 * (float)(lenEatFood)
-      features["score"] = score
+      features["score"] = 0.01 * (float)( abs(score) )
       features["num-walls-near-me"] = 0.01 * (float)(numWallsNearMe)
       features["num-capsules"] = 0.01 * (float)(numCapsules)
 
@@ -427,7 +442,6 @@ class DefensiveAgent(CaptureAgent):
 
   def determineAction(self, gameState):
       actions = gameState.getLegalActions(self.index)
-
       if util.flipCoin(self.epsilon):
           return random.choice(actions)
 
@@ -438,11 +452,15 @@ class DefensiveAgent(CaptureAgent):
       eatFood = self.getFood(gameState).asList()
       totalFood = len(defendFood) + len(eatFood)
       diffFood = len(eatFood) - len(defendFood)
+<<<<<<< HEAD
       return 10*self.getScore(gameState) + len(defendFood)
 
 
 
 
+=======
+      return 1.0 / float( len(defendFood) )
+>>>>>>> 52423f8816f0e9ae7741844722e5e62195162c4b
 #Q-Learning stuff ends here ************************************************************************************
 
 
@@ -560,11 +578,20 @@ class DefensiveAgent(CaptureAgent):
 
   def chooseAction(self, gameState):
 
-
     self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
     self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
     self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
+
+    if self.actionCount <= 13:
+        return 'South'
+    if self.actionCount == 14 or self.actionCount == 15:
+        return 'West'
+    if self.actionCount > 15 and self.actionCount <= 19:
+        return 'North'
+    if self.actionCount == 20:
+        return 'West'
+
 
     if self.opponent1Position == None or self.opponent2Position == None:
         self.observeState(gameState)
@@ -587,6 +614,7 @@ class DefensiveAgent(CaptureAgent):
     nextGameState = gameState.generateSuccessor(self.index, bestAction)
     reward = self.getReward(gameState)
     self.update(gameState, bestAction, nextGameState, reward)
+
     return bestAction
 
  #OffensiveAgent methods end here ************************************************************************************
