@@ -175,7 +175,7 @@ class OffensiveAgent(CaptureAgent):
       totalFood = len(defendFood) + len(eatFood)
 <<<<<<< HEAD
       diffFood = len(eatFood) - len(defendFood)
-      return 10*self.getScore(gameState) - len(eatFood) - 100*self.getMazeDistance(gameState.getAgentPosition(self.index),eatFood[len(eatFood)-1])
+      return 10*self.getScore(gameState) - len(eatFood) - self.getMazeDistance(gameState.getAgentPosition(self.index),eatFood[len(eatFood)-1])
 
 
 =======
