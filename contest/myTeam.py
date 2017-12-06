@@ -61,6 +61,7 @@ class OffensiveAgent(CaptureAgent):
   discount = 0.8
   epsilon = 0.05
   alpha = 0.02
+  actionCount = 0
 
 #
   def getQValue(self, gameState, action):
@@ -74,19 +75,11 @@ class OffensiveAgent(CaptureAgent):
       currentQValue = self.getQValue(gameState, action)
       actions = nextState.getLegalActions(self.index)
       features = self.getFeatures(gameState, action)
-      maxQValue = self.MIN_VALUE
-
-      if len(actions) == 0:
-          maxQValue = 0
-      else:
-          for act in actions:
-              nextQValue = self.getQValue(nextState, act)
-              if nextQValue > maxQValue:
-                  maxQValue = nextQValue
-
+      maxQValue = self.computeValueFromQValues(gameState)
       difference = ( reward + (self.discount * maxQValue ) ) - currentQValue
       for f in features:
           self.weights[f] = self.weights[f] + (self.alpha * difference) * features[f]
+      print "offensive weights:", self.weights
 
   def getFeatures(self, gameState, action ):
 
@@ -113,14 +106,14 @@ class OffensiveAgent(CaptureAgent):
           if distance == 1:
               numWallsNearMe += 1
 
-      features["dist-to-opp-1"] = distToOpp1
-      features["dist-to-opp-2"] = distToOpp2
-      features["dist-to-partne"] = distToOpp1
-      features["len-defend-food"] = lenDefendFood
-      features["len-eat-food"] = lenEatFood
+      features["dist-to-opp-1"] = 0.01 * ( (float)(distToOpp1) )
+      features["dist-to-opp-2"] = 0.01 * ( (float)(distToOpp2) )
+      features["dist-to-partner"] = 0.01 * ( (float)(distToPartner) )
+      features["len-defend-food"] = 0.01 * (float)(lenDefendFood)
+      features["len-eat-food"] = 0.01 * (float)(lenEatFood)
       features["score"] = score
-      features["num-walls-near-me"] = numWallsNearMe
-      features["num-capsules"] = numCapsules
+      features["num-walls-near-me"] = 0.01 * (float)(numWallsNearMe)
+      features["num-capsules"] = 0.01 * (float)(numCapsules)
 
       return features
 
@@ -140,7 +133,7 @@ class OffensiveAgent(CaptureAgent):
       if len( actions ) == 0:
           return None
       bestValue = self.MIN_VALUE
-      bestAction = None
+      bestAction = 'Stop'
       for action in actions:
           actionValue = self.getQValue(gameState, action)
           if actionValue > bestValue:
@@ -159,7 +152,14 @@ class OffensiveAgent(CaptureAgent):
       return self.computeActionFromQValues(gameState)
 
   def getReward(self, gameState):
-      return gameState.getScore()
+      defendFood = self.getFoodYouAreDefending(gameState).asList()
+      eatFood = self.getFood(gameState).asList()
+      totalFood = len(defendFood) + len(eatFood)
+      diffFood = len(eatFood) - len(defendFood)
+      return (float)(diffFood) / (float)(totalFood)
+
+
+
 
 #Q-Learning stuff ends here ************************************************************************************
 
@@ -277,13 +277,10 @@ class OffensiveAgent(CaptureAgent):
     self.initializeParticles()
 
   def chooseAction(self, gameState):
-
+    self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
-
-
     self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
     self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
-
 
     if self.opponent1Position == None or self.opponent2Position == None:
         self.observeState(gameState)
@@ -303,7 +300,6 @@ class OffensiveAgent(CaptureAgent):
 
     #now we get into q learning stuff
     bestAction = self.determineAction(gameState)
-    print bestAction
     nextGameState = gameState.generateSuccessor(self.index, bestAction)
     reward = self.getReward(gameState)
     self.update(gameState, bestAction, nextGameState, reward)
@@ -311,14 +307,203 @@ class OffensiveAgent(CaptureAgent):
 
  #OffensiveAgent methods end here ************************************************************************************
 
-
 class DefensiveAgent(CaptureAgent):
   """
   A Dummy agent to serve as an example of the necessary agent structure.
   You should look at baselineTeam.py for more details about how to
   create an agent as this is the bare minimum.
   """
+  numGhosts = 2
+  parts = []
+  MIN_VALUE = -99999999
+  MAX_VALUE = 99999999
 
+  #Q-Learning stuff starts here ************************************************************************************
+  weights = util.Counter()
+  discount = 0.8
+  epsilon = 0.05
+  alpha = 0.02
+  actionCount = 0
+
+#
+  def getQValue(self, gameState, action):
+      qValue = 0
+      features = self.getFeatures(gameState, action)
+      for f in features:
+          qValue += features[f] * self.weights[f]
+      return qValue
+
+  def update(self, gameState, action, nextState, reward):
+      currentQValue = self.getQValue(gameState, action)
+      actions = nextState.getLegalActions(self.index)
+      features = self.getFeatures(gameState, action)
+      maxQValue = self.computeValueFromQValues(gameState)
+      difference = ( reward + (self.discount * maxQValue ) ) - currentQValue
+      for f in features:
+          self.weights[f] = self.weights[f] + (self.alpha * difference) * features[f]
+      print "defensive weights: ", self.weights
+
+  def getFeatures(self, gameState, action ):
+
+      features = util.Counter()
+      features["bias"] = 1.0
+
+      defendFood = self.getFoodYouAreDefending(gameState).asList()
+      eatFood = self.getFood(gameState).asList()
+      capsules = gameState.getCapsules()
+      walls = gameState.getWalls().asList()
+
+      #exact feature numbers below
+      distToOpp1 = self.getMazeDistance(gameState.getAgentPosition(self.index), self.opponent1Position)
+      distToOpp2 = self.getMazeDistance(gameState.getAgentPosition(self.index), self.opponent2Position)
+      distToPartner = self.getMazeDistance(gameState.getAgentPosition(self.index), gameState.getAgentPosition(self.partnerIndex))
+      lenDefendFood = len(defendFood)
+      lenEatFood = len(eatFood)
+      score = gameState.getScore()
+      numWallsNearMe = 0
+      numCapsules = len(capsules)
+
+      for wall in walls:
+          distance = util.manhattanDistance( gameState.getAgentPosition(self.index), wall )
+          if distance == 1:
+              numWallsNearMe += 1
+
+      features["dist-to-opp-1"] = 0.01 * ( (float)(distToOpp1) )
+      features["dist-to-opp-2"] = 0.01 * ( (float)(distToOpp2) )
+      features["dist-to-partner"] = 0.01 * ( (float)(distToPartner) )
+      features["len-defend-food"] = 0.01 * (float)(lenDefendFood)
+      features["len-eat-food"] = 0.01 * (float)(lenEatFood)
+      features["score"] = score
+      features["num-walls-near-me"] = 0.01 * (float)(numWallsNearMe)
+      features["num-capsules"] = 0.01 * (float)(numCapsules)
+
+      return features
+
+  def computeValueFromQValues(self, gameState):
+      actions = gameState.getLegalActions(self.index)
+      if len(actions) == 0:
+          return 0.0
+      bestValue = self.MIN_VALUE
+      for action in actions:
+          actionValue = self.getQValue(gameState, action)
+          if actionValue > bestValue:
+              bestValue = actionValue
+      return bestValue
+
+  def computeActionFromQValues(self, gameState):
+      actions = gameState.getLegalActions(self.index)
+      if len( actions ) == 0:
+          return None
+      bestValue = self.MIN_VALUE
+      bestAction = 'Stop'
+      for action in actions:
+          actionValue = self.getQValue(gameState, action)
+          if actionValue > bestValue:
+              bestValue = actionValue
+              bestAction = action
+          elif actionValue == bestValue:
+              bestAction = random.choice( [action, bestAction] )
+      return bestAction
+
+  def determineAction(self, gameState):
+      actions = gameState.getLegalActions(self.index)
+
+      if util.flipCoin(self.epsilon):
+          return random.choice(actions)
+
+      return self.computeActionFromQValues(gameState)
+
+  def getReward(self, gameState):
+      defendFood = self.getFoodYouAreDefending(gameState).asList()
+      eatFood = self.getFood(gameState).asList()
+      totalFood = len(defendFood) + len(eatFood)
+      diffFood = len(eatFood) - len(defendFood)
+      return (float)(diffFood) / (float)(totalFood)
+
+
+
+
+#Q-Learning stuff ends here ************************************************************************************
+
+
+#Particle Filtering stuff starts here ************************************************************************************
+  def getObservationDistribution(self, noisyDistance, gameState):
+      observationDistributions = {}
+      if noisyDistance == None:
+          return util.Counter()
+      if noisyDistance not in observationDistributions:
+          distribution = util.Counter()
+          for pos in self.legalPositions:
+              dist = util.manhattanDistance(pos, gameState.getAgentPosition(self.index))
+              prob = gameState.getDistanceProb(dist, noisyDistance)
+              distribution[dist] += prob
+              observationDistributions[noisyDistance] = distribution
+      return observationDistributions[noisyDistance]
+
+  def observeState(self, gameState):
+      self.getBeliefDistribution()
+      myPosition = gameState.getAgentPosition(self.index)
+      noisyDistances = gameState.getAgentDistances()
+      emissionModels = {}
+      dist1 = noisyDistances[self.oppIndex1]
+      emissionModels[self.oppIndex1] = self.getObservationDistribution(dist1, gameState)
+      dist2 = noisyDistances[self.oppIndex2]
+      emissionModels[self.oppIndex2] = self.getObservationDistribution(dist2, gameState)
+
+      #GHOST PART IS LEFT OUT
+
+      for belief in self.beliefs:
+          prob = 1
+          i = 0
+          for ghostIndex in self.oppIndices:
+              eM = emissionModels[ghostIndex]
+              trueDistance = util.manhattanDistance(belief[i], myPosition)
+              prob *= eM[trueDistance]
+              self.beliefs[belief] = prob * self.beliefs[belief]
+              i += 1
+
+      if self.beliefs.totalCount() == 0:
+          self.initializeParticles()
+          self.getBeliefDistribution()
+
+      finalList = []
+      for k in range(self.numParticles):
+          finalList.append(util.sample(self.beliefs))
+
+      self.parts = finalList
+
+  def getBeliefDistribution(self):
+      "*** YOUR CODE HERE ***"
+      #add 1 for each location pair, then normalize to get beliefs
+      self.beliefs = util.Counter()
+      for tuples in self.parts:
+          self.beliefs[tuples] += 1
+
+      self.beliefs.normalize()
+
+  def initializeParticles(self):
+      #because we need to shuffle the particles, use temporary list
+      temporaryParticles = []
+      #thank God for itertools
+      for permutation in itertools.permutations(self.legalPositions, self.numGhosts):
+          temporaryParticles.append(permutation)
+      #shuffle changes temporaryParticles to a shuffled list of particles
+      random.shuffle(temporaryParticles)
+      self.numParticles = 700
+
+      #moving the shuffled particles into our particle list
+      i = 0
+      j = 0
+      self.parts = []
+      while i < self.numParticles:
+          self.parts.append(temporaryParticles[j])
+          i+=1
+          #need to go through the list multiple times to get the right number of particles
+          j = (j+1)%len(temporaryParticles)
+
+#Particle filtering stuff ends here ************************************************************************************
+
+ #OffensiveAgent methods  starts here ************************************************************************************
   def registerInitialState(self, gameState):
     """
     This method handles the initial setup of the
@@ -340,19 +525,48 @@ class DefensiveAgent(CaptureAgent):
     '''
     CaptureAgent.registerInitialState(self, gameState)
 
-    '''
-    Your initialization code goes here, if you need any.
-    '''
+    #set up offensive agent & defensive agent indices
+    self.indices = self.getTeam(gameState)
+    self.oppIndices = self.getOpponents(gameState)
+    self.index = self.indices[1]
+    self.partnerIndex = self.indices[0]
+    self.oppIndex1 = self.oppIndices[0]
+    self.oppIndex2 = self.oppIndices[1]
+    #set up legal positions
+    self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
+    #initialize particles
+    self.initializeParticles()
 
   def chooseAction(self, gameState):
-    """
-    Picks among actions randomly.
-    """
+
+
+    self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
+    self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
+    self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
 
-    '''
-    You should change this in your own agent.
-    '''
+    if self.opponent1Position == None or self.opponent2Position == None:
+        self.observeState(gameState)
+        self.getBeliefDistribution()
 
-    return random.choice(actions)
+        maxProb = self.MIN_VALUE
+        maxPositions = None
+        for positions, prob in self.beliefs.items():
+            if prob > maxProb:
+                maxProb = prob
+                maxPositions = positions
+        self.opponent1Position = maxPositions[0]
+        self.opponent2Position = maxPositions[1]
+
+    maxPositionsList = [self.opponent1Position, self.opponent2Position]
+    self.debugDraw(maxPositionsList, [0,0,1], clear = True)
+
+    #now we get into q learning stuff
+    bestAction = self.determineAction(gameState)
+    nextGameState = gameState.generateSuccessor(self.index, bestAction)
+    reward = self.getReward(gameState)
+    self.update(gameState, bestAction, nextGameState, reward)
+    return bestAction
+
+ #OffensiveAgent methods end here ************************************************************************************
