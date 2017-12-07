@@ -57,7 +57,7 @@ class OffensiveAgent(CaptureAgent):
   MAX_VALUE = 9999999999999999999999
 
   #Q-Learning stuff starts here ************************************************************************************
-  weights = {'bias': -91985.74628431616, 'dist-to-partner': -121.8604403468308, 'len-eat-food': -18485.28255089, 'num-walls-near-me': -1031.965496377134, 'score': 3427.251622802005, 'len-defend-food': -9870.783682936644, 'pac-dist-to-opp-2': -7193.866624381522, 'pac-dist-to-opp-1': -5556.814160288583, 'num-capsules': -1143.7830563997236, 'pac-dist-to-ghost-1' : 0.00, 'pac-dist-to-ghost-2' : 0.00 }
+  weights = {'food-near-me': 10.00, 'pac-dist-to-ghost-2': -804.31838007338729, 'pac-dist-to-ghost-1': 799.70264040440566, 'num-walls-near-me': -1219.7076297060364, 'bias': -92237.670776001629, 'num-capsules': -2053.5912941889956, 'pac-dist-to-opp-2': -7818.4887212910671, 'pac-dist-to-opp-1': -121.2907421163786, 'len-eat-food': -24949.774895975774, 'score': 3798.1831391978394, 'dist-to-partner': -121.8604403468308, 'len-defend-food': -6619.0517184995451}
   epsilon = 0.01
   alpha = 0.02
   discount = 0.8
@@ -81,8 +81,6 @@ class OffensiveAgent(CaptureAgent):
       difference = ( reward + (self.discount * maxQValue ) ) - currentQValue
       for f in features:
           self.weights[f] = self.weights[f] + (self.alpha * difference) * features[f]
-      print "offensive weights:", self.weights
-      print
 
   def getFeatures(self, gameState, action ):
 
@@ -114,12 +112,18 @@ class OffensiveAgent(CaptureAgent):
       lenEatFood = len(eatFood)
       score = self.getScore(nextS)
       numWallsNearMe = 0
+      foodNearMe = 0
       numCapsules = len(capsules)
 
       for wall in walls:
           distance = util.manhattanDistance(nextS.getAgentPosition(self.index), wall )
           if distance == 1:
               numWallsNearMe += 1
+      for food in self.getFood(gameState):
+          distance = util.manhattanDistance(nextS.getAgentPosition(self.index), food)
+          if distance < 3:
+              foodNearMe += 1
+
 
       features["pac-dist-to-opp-1"] = 0.01 * ( (float)(pacDistToOpp1) )
       features["pac-dist-to-opp-2"] = 0.01 * ( (float)(pacDistToOpp2) )
@@ -131,7 +135,7 @@ class OffensiveAgent(CaptureAgent):
       features["score"] = score
       features["num-walls-near-me"] = 0.01 * (float)(numWallsNearMe)
       features["num-capsules"] = 0.01 * (float)(numCapsules)
-
+      features["food-near-me"] = (float)(foodNearMe)
       return features
 
   def computeValueFromQValues(self, gameState):
@@ -173,10 +177,14 @@ class OffensiveAgent(CaptureAgent):
       eatFood = self.getFood(gameState).asList()
       totalFood = len(defendFood) + len(eatFood)
       diffFood = len(eatFood) - len(defendFood)
-      return (10*self.getScore(gameState)
-             - 1000*len(eatFood)
-             - 10*self.getMazeDistance(gameState.getAgentPosition(self.index),eatFood[len(eatFood)-1]))
-
+      downgrade = 0
+      if gameState.getAgentPosition(self.index) == self.initialposition:
+          return -1000000
+      if gameState.getAgentState(self.index).isPacman == False:
+          downgrade = -100000000
+      return (1000000*self.getScore(gameState)
+             - 100000000*len(eatFood)
+             - 10*self.getMazeDistance(gameState.getAgentPosition(self.index),eatFood[len(eatFood)-1])) + downgrade + len(defendFood)
 #Q-Learning stuff ends here ************************************************************************************
 
 
@@ -282,6 +290,8 @@ class OffensiveAgent(CaptureAgent):
     print "*"*60
     print "game Count", self.gameCount
     print "*"*60
+    print "offensive weights:", self.weights
+    print
     #set up offensive agent & defensive agent indices
     self.indices = self.getTeam(gameState)
     self.oppIndices = self.getOpponents(gameState)
@@ -289,6 +299,9 @@ class OffensiveAgent(CaptureAgent):
     self.partnerIndex = self.indices[1]
     self.oppIndex1 = self.oppIndices[0]
     self.oppIndex2 = self.oppIndices[1]
+    self.initialposition = gameState.getAgentPosition(self.index)
+    self.opp1InitialPosition = gameState.getAgentPosition(self.oppIndex1)
+    self.opp2InitialPosition = gameState.getAgentPosition(self.oppIndex2)
     #set up legal positions
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
@@ -298,21 +311,25 @@ class OffensiveAgent(CaptureAgent):
   def chooseAction(self, gameState):
     self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
-    self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
-    self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
+    opp1TruePos = gameState.getAgentPosition(self.oppIndex1)
+    opp2TruePos = gameState.getAgentPosition(self.oppIndex2)
 
-    if self.opponent1Position == None or self.opponent2Position == None:
-        self.observeState(gameState)
-        self.getBeliefDistribution()
+    self.observeState(gameState)
+    self.getBeliefDistribution()
 
-        maxProb = self.MIN_VALUE
-        maxPositions = None
-        for positions, prob in self.beliefs.items():
-            if prob > maxProb:
-                maxProb = prob
-                maxPositions = positions
-        self.opponent1Position = maxPositions[0]
-        self.opponent2Position = maxPositions[1]
+    maxProb = self.MIN_VALUE
+    maxPositions = None
+    for positions, prob in self.beliefs.items():
+        if prob > maxProb:
+            maxProb = prob
+            maxPositions = positions
+    self.opponent1Position = maxPositions[0]
+    self.opponent2Position = maxPositions[1]
+
+    if opp1TruePos != None:
+        self.opponent1Position = opp1TruePos
+    if opp2TruePos != None:
+        self.opponent2Position = opp2TruePos
 
     maxPositionsList = [self.opponent1Position, self.opponent2Position]
     self.debugDraw(maxPositionsList, [0,0,1], clear = True)
@@ -339,11 +356,11 @@ class DefensiveAgent(CaptureAgent):
   MAX_VALUE = 999999999999999999999
 
   #Q-Learning stuff starts here ************************************************************************************
-  weights = {'len-eat-food': 0.0, 'num-walls-near-me': 0.0, 'bias': 1.0, 'score': 1000.0, 'num-capsules': -10.0, 'len-defend-food': 10000.00, 'pac-dist-to-opp-2': 10000.00, 'pac-dist-to-opp-1': 100000.00, 'pac-dist-to-pacman-1' : 0.00, 'pac-dist-to-pacman-2' : 0.00}
-  epsilon = 0.05
+  weights = {'bias': -4868069.481216654, 'pac-dist-to-pacman-1': 952549.8500934899, 'len-eat-food': -898554.893756463, 'num-walls-near-me': -80700.34267579312, 'score': 576600.8699670128, 'pac-dist-to-pacman-2': -2626.951368215061, 'len-defend-food': -2379313.7426314307, 'pac-dist-to-opp-2': 1126633.3366323325, 'pac-dist-to-opp-1': -8443676.190616205, 'num-capsules': -727236.9037085744}
   alpha = 0.02
   discount = 0.8
   actionCount = 0
+  epsilon = 0.01
 
 #
   def getQValue(self, gameState, action):
@@ -361,8 +378,6 @@ class DefensiveAgent(CaptureAgent):
       difference = reward + (self.discount * maxQValue ) - currentQValue
       for f in features:
           self.weights[f] = self.weights[f] + (self.alpha * difference) * features[f]
-      print "defensive weights: ", self.weights
-      print
 
   def getFeatures(self, gameState, action ):
 
@@ -463,9 +478,15 @@ class DefensiveAgent(CaptureAgent):
       avgY = (int)(totaly/ len(defendFood))
 
       diffFood = len(eatFood) - len(defendFood)
+      downgrade = 0
+      if gameState.getAgentPosition(self.index) == self.initialposition:
+          return -1000000
+
+      if gameState.getAgentState(self.index).isPacman:
+          downgrade = -1000000
       return (10*self.getScore(gameState)
-             + 100*len(defendFood)
-             - 100000*self.getMazeDistance(gameState.getAgentPosition(self.index),defendFood[len(defendFood)/2]))
+             + 1000*len(defendFood)
+             - 100000*self.getMazeDistance(gameState.getAgentPosition(self.index),defendFood[len(defendFood)/2])) + downgrade
 #Q-Learning stuff ends here ************************************************************************************
 
 
@@ -567,7 +588,7 @@ class DefensiveAgent(CaptureAgent):
     CaptureAgent.registerInitialState in captureAgents.py.
     '''
     CaptureAgent.registerInitialState(self, gameState)
-
+    print "defensive weights: ", self.weights
     #set up offensive agent & defensive agent indices
     self.indices = self.getTeam(gameState)
     self.oppIndices = self.getOpponents(gameState)
@@ -576,6 +597,9 @@ class DefensiveAgent(CaptureAgent):
     self.oppIndex1 = self.oppIndices[0]
     self.oppIndex2 = self.oppIndices[1]
     #set up legal positions
+    self.initialposition = gameState.getAgentPosition(self.index)
+    self.opp1InitialPosition = gameState.getAgentPosition(self.oppIndex1)
+    self.opp2InitialPosition = gameState.getAgentPosition(self.oppIndex2)
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
     #initialize particles
@@ -585,21 +609,25 @@ class DefensiveAgent(CaptureAgent):
 
     self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
-    self.opponent1Position = gameState.getAgentPosition(self.oppIndex1)
-    self.opponent2Position = gameState.getAgentPosition(self.oppIndex2)
+    opp1TruePos = gameState.getAgentPosition(self.oppIndex1)
+    opp2TruePos = gameState.getAgentPosition(self.oppIndex2)
 
-    if self.opponent1Position == None or self.opponent2Position == None:
-        self.observeState(gameState)
-        self.getBeliefDistribution()
+    self.observeState(gameState)
+    self.getBeliefDistribution()
 
-        maxProb = self.MIN_VALUE
-        maxPositions = None
-        for positions, prob in self.beliefs.items():
-            if prob > maxProb:
-                maxProb = prob
-                maxPositions = positions
-        self.opponent1Position = maxPositions[0]
-        self.opponent2Position = maxPositions[1]
+    maxProb = self.MIN_VALUE
+    maxPositions = None
+    for positions, prob in self.beliefs.items():
+        if prob > maxProb:
+            maxProb = prob
+            maxPositions = positions
+    self.opponent1Position = maxPositions[0]
+    self.opponent2Position = maxPositions[1]
+
+    if opp1TruePos != None:
+        self.opponent1Position = opp1TruePos
+    if opp2TruePos != None:
+        self.opponent2Position = opp2TruePos
 
     maxPositionsList = [self.opponent1Position, self.opponent2Position]
     self.debugDraw(maxPositionsList, [0,0,1], clear = True)
