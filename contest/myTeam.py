@@ -59,8 +59,8 @@ class OffensiveAgent(CaptureAgent):
 
   #Q-Learning stuff starts here ************************************************************************************
   weights = util.Counter()
-  for n,w in {'walls-near-me': 0.0, 'score': -0.015140754375703473, 'bias': 0.13752642629768116, 'closest-ghost-distance': 0.7028480263744361, 'dist-to-best-spot': 0.20441185985036966, 'food-near-me': -0.029645558146783508}.items():
-      weights[n] = w
+  #for n,w in {'walls-near-me': 0.0, 'score': -0.015140754375703473, 'bias': 0.13752642629768116, 'closest-ghost-distance': 0.7028480263744361, 'dist-to-best-spot': 0.20441185985036966, 'food-near-me': -0.029645558146783508}.items():
+    #  weights[n] = w
   epsilon = 0.001
   alpha = 0.02
   discount = 0.8
@@ -95,6 +95,7 @@ class OffensiveAgent(CaptureAgent):
       eatFood = self.getFood(nextS).asList()
       capsules = nextS.getCapsules()
       myPosition = nextS.getAgentPosition(self.index)
+      myCurrentPosition = gameState.getAgentPosition(self.index)
 
       #Feature 1: Distance to the closest opponent
       minDistToOpponent = 6
@@ -121,7 +122,7 @@ class OffensiveAgent(CaptureAgent):
 
       #Feature distance to closest ghsot
       closestGhostDistance = self.MAX_VALUE
-      score = 0.0
+      score = gameState.getScore()
       numWallsNearMe = 0.0
 
 
@@ -153,30 +154,38 @@ class OffensiveAgent(CaptureAgent):
           closestGhostDistance = 0.0
           foodNearMe = 0.0
 
-      if closestGhostDistance == 0.0 or closestGhostDistance > 3:
-          features["closest-ghost-distance"] = 0.0
-      else:
-          features["closest-ghost-distance"] = 1.0 / float(closestGhostDistance)
-
       #feature 4: distance to best spot
       distanceToBestSpot = self.getMazeDistance(myPosition, foodChoice)
 
       if distanceToBestSpot != 0.0:
-          features["dist-to-best-spot"] = 1.0 / float(distanceToBestSpot)+1
+          features["dist-to-best-spot"] = 1.0 / float(distanceToBestSpot)
       else:
           features["dist-to-best-spot"] = 0.0
 
 
-      features["score"] = score
+      features["score"] = 1000*score
       if numWallsNearMe == 0:
           features["walls-near-me"] = numWallsNearMe
       else:
           features["walls-near-me"] = 1.0 / float( numWallsNearMe )
       features["food-near-me"] = foodNearMe
-      #features["pac-dist-to-opp"] = ( (float)(minDistToOpponent) )
-      #features["len-eat-food"] = 1.0 / (float)(lenEatFood)
-      #features["pac-dist-to-food"] = 1.0 / (float)(minDistToFood)
+      if gameState.getAgentState(self.index).numCarrying < 2:
+          features["Distance-to-home"] = 0.0
+          features["Amount-of-Food-Carrying"] = 2*(nextS.getAgentState(self.index).numCarrying+1)
+          features["Amount-of-Food-Left"] = 1.0/len(eatFood)
+      else:
+          self.amountOfFood = gameState.getAgentState(self.index).numCarrying/(self.amountOfFood * 1.0)
+          features["Distance-to-home"] = 150.00/(self.getMazeDistance(myPosition, self.initialState) + 1)
+          features["Amount-of-Food-Carrying"] = 0.0
+          features["Amount-of-Food-Left"] = 0.0
 
+      if closestGhostDistance == 0.0 or closestGhostDistance > 1:
+          features["closest-ghost-distance"] = 0.0
+      else:
+          features["closest-ghost-distance"] = 150.0 / float(closestGhostDistance)
+          features["Amount-of-Food-Carrying"] = 0.0
+          features["Amount-of-Food-Left"] = 0.0
+          features["walls-near-me"] = 10.0 / float( numWallsNearMe +1)
       return features
 
   def computeValueFromQValues(self, gameState):
@@ -258,15 +267,13 @@ class OffensiveAgent(CaptureAgent):
       foodChoice = None
       minDistToFood = self.MAX_VALUE
 
-
-
       for f in eatFood:
           dFood = self.getMazeDistance(myPosition, f)
           if dFood < minDistToFood:
               minDistToFood = dFood
               foodChoice = f
       if nextState.getAgentState(self.index).isPacman == False:
-          return 1.0 / (float)( self.getMazeDistance(nextState.getAgentPosition(self.index), foodChoice ) + nextState.getScore())
+          return 1.0 / (float)( self.getMazeDistance(nextState.getAgentPosition(self.index), foodChoice ) )
 
       closestGhostDistance = self.MAX_VALUE
       opp1IsPacman = nextState.getAgentState(self.oppIndex1).isPacman
@@ -409,7 +416,7 @@ class OffensiveAgent(CaptureAgent):
     #set up legal positions
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
     x,y = gameState.getAgentPosition(self.index)
-    self.initialState = (x,y-1)
+    self.initialState = (x,y)
 
     #initialize particles
     self.initializeParticles()
@@ -509,6 +516,7 @@ class DefensiveAgent(CaptureAgent):
       nextState = gameState.generateSuccessor(self.index, action)
       myPosition = nextState.getAgentPosition(self.index)
 
+
       #closest Pacman
       closestPacmanDistance = 0.0
       opp1IsPacman = False
@@ -539,7 +547,7 @@ class DefensiveAgent(CaptureAgent):
       features["num-pellets-being-carried"] = (float)(numPellets)
 
       if distanceToBestSpot == 0.0:
-          features["dist-to-best-spot"] = 0.0
+          features["dist-to-best-spot"] = 10.0
       else:
           features["dist-to-best-spot"] = ( 1.0 / (float)( distanceToBestSpot ) )
 
