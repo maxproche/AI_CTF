@@ -170,7 +170,7 @@ class OffensiveAgent(CaptureAgent):
       if util.flipCoin(self.epsilon):
           return random.choice(actions)
 
-      return self.computeActionFromQValues(gameState)
+      return 'Stop'
 
   def getReward(self, gameState):
       defendFood = self.getFoodYouAreDefending(gameState).asList()
@@ -290,7 +290,6 @@ class OffensiveAgent(CaptureAgent):
     print "*"*60
     print "game Count", self.gameCount
     print "*"*60
-    print "offensive weights:", self.weights
     print
     #set up offensive agent & defensive agent indices
     self.indices = self.getTeam(gameState)
@@ -309,8 +308,10 @@ class OffensiveAgent(CaptureAgent):
     self.initializeParticles()
 
   def chooseAction(self, gameState):
+
     self.actionCount += 1
     actions = gameState.getLegalActions(self.index)
+    """
     opp1TruePos = gameState.getAgentPosition(self.oppIndex1)
     opp2TruePos = gameState.getAgentPosition(self.oppIndex2)
 
@@ -339,8 +340,8 @@ class OffensiveAgent(CaptureAgent):
     nextGameState = gameState.generateSuccessor(self.index, bestAction)
     reward = self.getReward(gameState)
     self.update(gameState, bestAction, nextGameState, reward)
-
-    return bestAction
+    """
+    return random.choice(actions)
 
  #OffensiveAgent methods end here ************************************************************************************
 
@@ -356,13 +357,12 @@ class DefensiveAgent(CaptureAgent):
   MAX_VALUE = 999999999999999999999
 
   #Q-Learning stuff starts here ************************************************************************************
-  weights = {'bias': -4868069.481216654, 'pac-dist-to-pacman-1': 952549.8500934899, 'len-eat-food': -898554.893756463, 'num-walls-near-me': -80700.34267579312, 'score': 576600.8699670128, 'pac-dist-to-pacman-2': -2626.951368215061, 'len-defend-food': -2379313.7426314307, 'pac-dist-to-opp-2': 1126633.3366323325, 'pac-dist-to-opp-1': -8443676.190616205, 'num-capsules': -727236.9037085744}
+  weights = {'num-pellets-being-carried': -0.0, 'dist-to-best-spot': 9.998000399920016e-05, 'bias': 9.998000399920016e-05, 'closest-pacman-distance': 0.9998000399920016} 
   alpha = 0.02
   discount = 0.8
   actionCount = 0
   epsilon = 0.01
 
-#
   def getQValue(self, gameState, action):
       qValue = 0
       features = self.getFeatures(gameState, action)
@@ -379,53 +379,50 @@ class DefensiveAgent(CaptureAgent):
       for f in features:
           self.weights[f] = self.weights[f] + (self.alpha * difference) * features[f]
 
-  def getFeatures(self, gameState, action ):
+      #normalizing the weights
+      factor=1.0/sum(self.weights.itervalues())
+      for feature in self.weights:
+          self.weights[feature] = self.weights[feature]*factor
 
+  def getFeatures(self, gameState, action ):
       features = util.Counter()
       features["bias"] = 1.0
+      nextState = gameState.generateSuccessor(self.index, action)
+      myPosition = nextState.getAgentPosition(self.index)
 
-      nextS = gameState.generateSuccessor(self.index, action)
-      defendFood = self.getFoodYouAreDefending(nextS).asList()
-      eatFood = self.getFood(nextS).asList()
-      capsules = nextS.getCapsules()
-      walls = nextS.getWalls().asList()
+      #closest Pacman
+      closestPacmanDistance = 0.0
+      opp1IsPacman = False
+      if nextState.getAgentState(self.oppIndex1).isPacman:
+          opp1IsPacman = True
+          distanceToPac = self.getMazeDistance( myPosition, self.opponent1Position )
+          closestPacmanDistance = distanceToPac
 
-      pacDistToOpp1=1.0
-      pacDistToOpp2=1.0
-      pacDistToPacman1 = 0.0
-      pacDistToPacman2 = 0.0
+      if nextState.getAgentState(self.oppIndex2).isPacman:
+          distanceToPac = self.getMazeDistance( myPosition, self.opponent2Position )
+          if opp1IsPacman:
+              if distanceToPac < closestPacmanDistance:
+                  closestPacmanDistance = distanceToPac
+          else:
+              closestPacmanDistance = distanceToPac
 
-      if gameState.getAgentState(self.oppIndex1).isPacman:
-          pacDistToPacman1 = self.getMazeDistance(gameState.getAgentPosition(self.index), self.opponent1Position)
-      if gameState.getAgentState(self.oppIndex2).isPacman:
-          pacDistToPacman2 = self.getMazeDistance(gameState.getAgentPosition(self.index), self.opponent2Position)
+      #number of pellets being carried:
+      numPellets = nextState.getAgentState(self.oppIndex1).numCarrying + nextState.getAgentState(self.oppIndex2).numCarrying
 
-#exact feature numbers below
+      #distance to best spot
+      distanceToBestSpot = self.getMazeDistance(myPosition, self.bestSpot)
 
-      pacDistToOpp1 = self.getMazeDistance(nextS.getAgentPosition(self.index), self.opponent1Position)
-      pacDistToOpp2 = self.getMazeDistance(nextS.getAgentPosition(self.index), self.opponent2Position)
-      #distToPartner = self.getMazeDistance(nextS.getAgentPosition(self.index), nextS.getAgentPosition(self.partnerIndex))
-      lenDefendFood = len(defendFood)
-      lenEatFood = len(eatFood)
-      score = self.getScore(nextS)
-      numWallsNearMe = 0
-      numCapsules = len(capsules)
+      if closestPacmanDistance != 0.0:
+          features["closest-pacman-distance"] =  10000 / (float)(closestPacmanDistance)
+      else:
+          features["closest-pacman-distance"] =  10000
 
-      for wall in walls:
-          distance = util.manhattanDistance(nextS.getAgentPosition(self.index), wall )
-          if distance == 1:
-              numWallsNearMe += 1
+      features["num-pellets-being-carried"] = (float)(numPellets)
 
-      features["pac-dist-to-opp-1"] = 0.01 * ( (float)(pacDistToOpp1) )
-      features["pac-dist-to-opp-2"] = 0.01 * ( (float)(pacDistToOpp2) )
-      features["pac-dist-to-pacman-1"] = 0.01 * ( (float)(pacDistToPacman1) )
-      features["pac-dist-to-pacman-2"] = 0.01 * ( (float)(pacDistToPacman2) )
-      #features["dist-to-partner"] = 0.01 * ( (float)(distToPartner) )
-      features["len-defend-food"] = 0.01 * (float)(lenDefendFood)
-      features["len-eat-food"] = 0.01 * (float)(lenEatFood)
-      features["score"] = score
-      features["num-walls-near-me"] = 0.01 * (float)(numWallsNearMe)
-      features["num-capsules"] = 0.01 * (float)(numCapsules)
+      if distanceToBestSpot == 0.0:
+          features["dist-to-best-spot"] = 0.0
+      else:
+          features["dist-to-best-spot"] = ( 1.0 / (float)( distanceToBestSpot ) )
 
       return features
 
@@ -445,48 +442,76 @@ class DefensiveAgent(CaptureAgent):
       if len( actions ) == 0:
           return None
       bestValue = self.MIN_VALUE
-      bestAction = 'South'
+      bestAction = None
       for action in actions:
-          if action != 'Stop':
-              actionValue = self.getQValue(gameState, action)
-              if actionValue > bestValue:
-                  bestValue = actionValue
-                  bestAction = action
-              elif actionValue == bestValue:
-                  bestAction = random.choice( [action, bestAction] )
+          actionValue = self.getQValue(gameState, action)
+          if actionValue > bestValue:
+              bestValue = actionValue
+              bestAction = action
+          elif actionValue == bestValue:
+              bestAction = random.choice( [action, bestAction] )
       return bestAction
 
   def determineAction(self, gameState):
       actions = gameState.getLegalActions(self.index)
+      opp1IsPacman = gameState.getAgentState(self.oppIndex1).isPacman
+      opp2IsPacman = gameState.getAgentState(self.oppIndex2).isPacman
+
+      for action in actions:
+          nextState = gameState.generateSuccessor(self.index, action)
+          nextPos = nextState.getAgentPosition(self.index)
+
+          if opp1IsPacman and nextPos == self.opponent1Position:
+              return action
+          if opp2IsPacman and nextPos == self.opponent2Position:
+              return action
+
+
       if util.flipCoin(self.epsilon):
           return random.choice(actions)
 
       return self.computeActionFromQValues(gameState)
 
   def getReward(self, gameState):
-      defendFood = self.getFoodYouAreDefending(gameState).asList()
-      eatFood = self.getFood(gameState).asList()
-      totalFood = len(defendFood) + len(eatFood)
-      totalx = 0
-      totaly = 0
-      for f in defendFood:
-          x,y = f
-          totalx += x
-          totaly += y
 
-      avgX = (int)(totalx/ len(defendFood))
-      avgY = (int)(totaly/ len(defendFood))
+      myPosition = gameState.getAgentPosition(self.index)
 
-      diffFood = len(eatFood) - len(defendFood)
-      downgrade = 0
-      if gameState.getAgentPosition(self.index) == self.initialposition:
-          return -1000000
+      #closest Pacman
+      closestPacmanDistance = 0.0
+      opp1IsPacman = False
+      opp2IsPacman = False
+      noPacman = True
+      if gameState.getAgentState(self.oppIndex1).isPacman:
+          opp1IsPacman = True
+          distanceToPac = self.getMazeDistance( myPosition, self.opponent1Position )
+          closestPacmanDistance = distanceToPac
+          noPacman = False
 
-      if gameState.getAgentState(self.index).isPacman:
-          downgrade = -1000000
-      return (10*self.getScore(gameState)
-             + 1000*len(defendFood)
-             - 100000*self.getMazeDistance(gameState.getAgentPosition(self.index),defendFood[len(defendFood)/2])) + downgrade
+      if gameState.getAgentState(self.oppIndex2).isPacman:
+          opp2IsPacman = True
+          noPacman = False
+          distanceToPac = self.getMazeDistance( myPosition, self.opponent2Position )
+          if opp1IsPacman:
+              if distanceToPac < closestPacmanDistance:
+                  closestPacmanDistance = distanceToPac
+          else:
+              closestPacmanDistance = distanceToPac
+
+      #maze distance to best spot
+      distanceToBest = (float)( self.getMazeDistance(myPosition, self.bestSpot) )
+
+      #give it rewards
+        #if neither is pacman go to good spot
+      if noPacman:
+          if distanceToBest != 0.0:
+              reward =  ( 1.0 / (float)( distanceToBest ) )
+              return reward
+          return 0.0
+      else:
+          if closestPacmanDistance != 0.0:
+              return 10000 / float(closestPacmanDistance)
+          return 10000
+
 #Q-Learning stuff ends here ************************************************************************************
 
 
@@ -602,15 +627,27 @@ class DefensiveAgent(CaptureAgent):
     self.opp2InitialPosition = gameState.getAgentPosition(self.oppIndex2)
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
+    #set up bestSpot
+    self.bestSpot = (12, 8)
+
     #initialize particles
     self.initializeParticles()
 
   def chooseAction(self, gameState):
 
     self.actionCount += 1
+    """
+    if self.actionCount <= 13:
+        return 'North'
+    if self.actionCount == 14 or self.actionCount == 15:
+        return 'East'
+    if self.actionCount <= 19:
+        return 'South'
+    """
     actions = gameState.getLegalActions(self.index)
     opp1TruePos = gameState.getAgentPosition(self.oppIndex1)
     opp2TruePos = gameState.getAgentPosition(self.oppIndex2)
+
 
     self.observeState(gameState)
     self.getBeliefDistribution()
@@ -635,7 +672,7 @@ class DefensiveAgent(CaptureAgent):
     #now we get into q learning stuff
     bestAction = self.determineAction(gameState)
     nextGameState = gameState.generateSuccessor(self.index, bestAction)
-    reward = self.getReward(gameState)
+    reward = self.getReward(nextGameState)
     self.update(gameState, bestAction, nextGameState, reward)
 
     return bestAction
