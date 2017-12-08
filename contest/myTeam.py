@@ -357,7 +357,7 @@ class DefensiveAgent(CaptureAgent):
   MAX_VALUE = 999999999999999999999
 
   #Q-Learning stuff starts here ************************************************************************************
-  weights = {'num-pellets-being-carried': -0.0, 'dist-to-best-spot': 9.998000399920016e-05, 'bias': 9.998000399920016e-05, 'closest-pacman-distance': 0.9998000399920016} 
+  weights = {'num-pellets-being-carried': -0.0, 'dist-to-best-spot': 9.998000399920016e-05, 'bias': 9.998000399920016e-05, 'closest-pacman-distance': 0.9998000399920016}
   alpha = 0.02
   discount = 0.8
   actionCount = 0
@@ -578,7 +578,7 @@ class DefensiveAgent(CaptureAgent):
           temporaryParticles.append(permutation)
       #shuffle changes temporaryParticles to a shuffled list of particles
       random.shuffle(temporaryParticles)
-      self.numParticles = 700
+      self.numParticles = 1000
 
       #moving the shuffled particles into our particle list
       i = 0
@@ -628,7 +628,11 @@ class DefensiveAgent(CaptureAgent):
     self.legalPositions = [p for p in gameState.getWalls().asList(False) if p[1] > 1]
 
     #set up bestSpot
-    self.bestSpot = (12, 8)
+    if self.index == 0 or self.index == 2:
+        self.bestSpot = (12, 8)
+    else:
+        self.bestSpot = (19, 8)
+        self.debugDraw( self.bestSpot, [0,1,0], clear = False)
 
     #initialize particles
     self.initializeParticles()
